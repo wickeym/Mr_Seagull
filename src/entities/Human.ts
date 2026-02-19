@@ -1,54 +1,76 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH } from '../utils/constants';
+import { PerspectiveSystem } from '../systems/PerspectiveSystem';
 
-export class Human extends Phaser.Physics.Arcade.Sprite {
-  private alreadyHit = false;
+export class Human extends Phaser.GameObjects.Sprite {
+  private hit = false;
   private readonly highValue: boolean;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, highValue = false) {
-    super(scene, x, y, 'human');
+  public worldX = 0;
+  public worldY = 0;
+  public worldZ = 0;
+  public zSpeed = 0;
+
+  constructor(scene: Phaser.Scene, highValue = false) {
+    super(scene, 0, 0, 'human');
 
     this.highValue = highValue;
 
     scene.add.existing(this);
-    scene.physics.add.existing(this);
-
-    this.setDepth(4);
+    this.setDepth(8);
 
     if (this.highValue) {
       this.setTint(0x9d4edd);
     }
-
-    const body = this.body as Phaser.Physics.Arcade.Body;
-    body.setAllowGravity(false);
   }
 
-  public setMovement(speed: number, direction: 1 | -1): void {
-    this.setVelocityX(speed * direction);
-    this.setFlipX(direction < 0);
+  public setWorldState(worldX: number, worldY: number, worldZ: number, zSpeed: number): void {
+    this.worldX = worldX;
+    this.worldY = worldY;
+    this.worldZ = worldZ;
+    this.zSpeed = zSpeed;
   }
 
-  public onHit(): void {
-    if (this.alreadyHit) {
+  public updateFlight(deltaSec: number): void {
+    if (this.hit) {
       return;
     }
 
-    this.alreadyHit = true;
+    this.worldZ -= this.zSpeed * deltaSec;
+  }
 
-    const body = this.body as Phaser.Physics.Arcade.Body;
-    body.enable = false;
+  public render(perspective: PerspectiveSystem): void {
+    if (this.hit) {
+      return;
+    }
 
-    const emoji = this.scene.add.text(this.x, this.y - 28, Math.random() > 0.35 ? '🤢' : '!', {
+    const projection = perspective.project(this.worldX, this.worldY, this.worldZ);
+    this.setVisible(projection.visible);
+    if (!projection.visible) {
+      return;
+    }
+
+    this.setPosition(projection.x, projection.y);
+    this.setScale(projection.scale * (this.highValue ? 1.07 : 1));
+  }
+
+  public onHit(): void {
+    if (this.hit) {
+      return;
+    }
+
+    this.hit = true;
+
+    const emoji = this.scene.add.text(this.x, this.y - 24, Math.random() > 0.35 ? '🤢' : '!', {
       fontFamily: 'Verdana',
       fontSize: '20px',
       color: '#111'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(30);
 
     this.scene.tweens.add({
       targets: this,
       y: this.y - 12,
-      angle: 14,
-      duration: 120,
+      angle: 13,
+      duration: 110,
       yoyo: true,
       repeat: 1
     });
@@ -72,11 +94,11 @@ export class Human extends Phaser.Physics.Arcade.Sprite {
     return this.highValue ? 9 : 6;
   }
 
-  public preUpdate(time: number, delta: number): void {
-    super.preUpdate(time, delta);
+  public get wasHit(): boolean {
+    return this.hit;
+  }
 
-    if (this.x < -40 || this.x > GAME_WIDTH + 40) {
-      this.destroy();
-    }
+  public get isOutOfRange(): boolean {
+    return this.worldZ < 0.45;
   }
 }

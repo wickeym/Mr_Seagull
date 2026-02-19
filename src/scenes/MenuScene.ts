@@ -29,13 +29,19 @@ export class MenuScene extends Phaser.Scene {
       this.scene.start(SCENE_KEYS.Arcade);
     });
 
-    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 105, 'Move: Arrow keys or A/D | Drop: Hold SPACE then release', {
+    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 120, 'Flight View: steer into the screen and time drops on incoming targets', {
       fontFamily: 'Verdana',
-      fontSize: '18px',
+      fontSize: '17px',
       color: '#102a43'
     }).setOrigin(0.5);
 
-    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 74, 'Mobile: use on-screen LEFT / RIGHT / DROP controls', {
+    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 92, 'Move: Arrow keys or WASD (left/right + up/down) | Drop: Hold SPACE then release', {
+      fontFamily: 'Verdana',
+      fontSize: '16px',
+      color: '#102a43'
+    }).setOrigin(0.5);
+
+    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 66, 'Mobile: use on-screen D-pad + DROP control', {
       fontFamily: 'Verdana',
       fontSize: '16px',
       color: '#1b4965'

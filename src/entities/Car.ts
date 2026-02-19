@@ -1,41 +1,63 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH } from '../utils/constants';
+import { PerspectiveSystem } from '../systems/PerspectiveSystem';
 
-export class Car extends Phaser.Physics.Arcade.Sprite {
-  private alreadyHit = false;
+export class Car extends Phaser.GameObjects.Sprite {
+  private hit = false;
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
-    super(scene, x, y, 'car');
+  public worldX = 0;
+  public worldY = 0;
+  public worldZ = 0;
+  public zSpeed = 0;
+
+  constructor(scene: Phaser.Scene) {
+    super(scene, 0, 0, 'car');
 
     scene.add.existing(this);
-    scene.physics.add.existing(this);
-
-    this.setDepth(3);
-
-    const body = this.body as Phaser.Physics.Arcade.Body;
-    body.setAllowGravity(false);
+    this.setDepth(7);
   }
 
-  public setMovement(speed: number, direction: 1 | -1): void {
-    this.setVelocityX(speed * direction);
-    this.setFlipX(direction < 0);
+  public setWorldState(worldX: number, worldY: number, worldZ: number, zSpeed: number): void {
+    this.worldX = worldX;
+    this.worldY = worldY;
+    this.worldZ = worldZ;
+    this.zSpeed = zSpeed;
   }
 
-  public onHit(): void {
-    if (this.alreadyHit) {
+  public updateFlight(deltaSec: number): void {
+    if (this.hit) {
       return;
     }
 
-    this.alreadyHit = true;
+    this.worldZ -= this.zSpeed * deltaSec;
+  }
 
-    const body = this.body as Phaser.Physics.Arcade.Body;
-    body.enable = false;
+  public render(perspective: PerspectiveSystem): void {
+    if (this.hit) {
+      return;
+    }
 
-    const emoji = this.scene.add.text(this.x, this.y - 30, Math.random() > 0.5 ? '🤢' : '!', {
+    const projection = perspective.project(this.worldX, this.worldY, this.worldZ);
+    this.setVisible(projection.visible);
+    if (!projection.visible) {
+      return;
+    }
+
+    this.setPosition(projection.x, projection.y);
+    this.setScale(projection.scale * 1.2);
+  }
+
+  public onHit(): void {
+    if (this.hit) {
+      return;
+    }
+
+    this.hit = true;
+
+    const emoji = this.scene.add.text(this.x, this.y - 26, Math.random() > 0.5 ? '🤢' : '!', {
       fontFamily: 'Verdana',
       fontSize: '20px',
       color: '#111'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(30);
 
     this.scene.tweens.add({
       targets: this,
@@ -65,11 +87,11 @@ export class Car extends Phaser.Physics.Arcade.Sprite {
     return 14;
   }
 
-  public preUpdate(time: number, delta: number): void {
-    super.preUpdate(time, delta);
+  public get wasHit(): boolean {
+    return this.hit;
+  }
 
-    if (this.x < -65 || this.x > GAME_WIDTH + 65) {
-      this.destroy();
-    }
+  public get isOutOfRange(): boolean {
+    return this.worldZ < 0.45;
   }
 }

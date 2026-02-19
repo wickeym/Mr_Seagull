@@ -1,37 +1,35 @@
 import Phaser from 'phaser';
 import { Car } from '../entities/Car';
 import { Human } from '../entities/Human';
-import { GAME_WIDTH } from '../utils/constants';
-import { pickOne, randomInt } from '../utils/rng';
+import { randomInt } from '../utils/rng';
+
+interface SpawnCallbacks {
+  onHumanSpawn: (human: Human) => void;
+  onCarSpawn: (car: Car) => void;
+}
 
 export class SpawnSystem {
   private readonly scene: Phaser.Scene;
-  private readonly humans: Phaser.Physics.Arcade.Group;
-  private readonly cars: Phaser.Physics.Arcade.Group;
+  private readonly callbacks: SpawnCallbacks;
   private humanTimer?: Phaser.Time.TimerEvent;
   private carTimer?: Phaser.Time.TimerEvent;
 
-  constructor(
-    scene: Phaser.Scene,
-    humans: Phaser.Physics.Arcade.Group,
-    cars: Phaser.Physics.Arcade.Group
-  ) {
+  constructor(scene: Phaser.Scene, callbacks: SpawnCallbacks) {
     this.scene = scene;
-    this.humans = humans;
-    this.cars = cars;
+    this.callbacks = callbacks;
   }
 
   public start(): void {
     this.stop();
 
     this.humanTimer = this.scene.time.addEvent({
-      delay: 950,
+      delay: 850,
       loop: true,
       callback: () => this.spawnHuman()
     });
 
     this.carTimer = this.scene.time.addEvent({
-      delay: 1700,
+      delay: 1600,
       loop: true,
       callback: () => this.spawnCar()
     });
@@ -43,25 +41,27 @@ export class SpawnSystem {
   }
 
   private spawnHuman(): void {
-    const direction = pickOne<1 | -1>([1, -1]);
-    const x = direction === 1 ? -24 : GAME_WIDTH + 24;
-    const y = randomInt(290, 415);
-    const speed = randomInt(65, 125);
-    const highValue = Math.random() < 0.22;
+    const highValue = Math.random() < 0.2;
+    const human = new Human(this.scene, highValue);
+    human.setWorldState(
+      randomInt(-100, 100) / 100,
+      randomInt(-65, 55) / 100,
+      randomInt(86, 103) / 10,
+      randomInt(14, 20) / 10
+    );
 
-    const human = new Human(this.scene, x, y, highValue);
-    human.setMovement(speed, direction);
-    this.humans.add(human);
+    this.callbacks.onHumanSpawn(human);
   }
 
   private spawnCar(): void {
-    const direction = pickOne<1 | -1>([1, -1]);
-    const x = direction === 1 ? -48 : GAME_WIDTH + 48;
-    const y = pickOne([455, 495]);
-    const speed = randomInt(145, 215);
+    const car = new Car(this.scene);
+    car.setWorldState(
+      randomInt(-95, 95) / 100,
+      randomInt(20, 100) / 100,
+      randomInt(88, 105) / 10,
+      randomInt(20, 29) / 10
+    );
 
-    const car = new Car(this.scene, x, y);
-    car.setMovement(speed, direction);
-    this.cars.add(car);
+    this.callbacks.onCarSpawn(car);
   }
 }
