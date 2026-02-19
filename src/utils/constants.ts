@@ -10,6 +10,10 @@ export const SCENE_KEYS = {
   Results: 'ResultsScene'
 } as const;
 
+export const STORAGE_KEYS = {
+  arcadeBestScore: 'mr-seagull:arcade-best-score'
+} as const;
+
 export const COLORS = {
   sky: 0x8ecae6,
   ground: 0x8d6e63,

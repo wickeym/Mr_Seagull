@@ -9,25 +9,37 @@ export class MenuScene extends Phaser.Scene {
   public create(): void {
     this.cameras.main.setBackgroundColor(0x8ecae6);
 
-    this.add.text(GAME_WIDTH / 2, 130, 'Mr. Seagull', {
+    this.add.text(GAME_WIDTH / 2, 112, 'Mr. Seagull', {
       fontFamily: 'Verdana',
       fontSize: '56px',
       color: '#102a43'
     }).setOrigin(0.5);
 
-    this.add.text(GAME_WIDTH / 2, 190, 'Drop chaos from the skies', {
+    this.add.text(GAME_WIDTH / 2, 168, 'Drop chaos from the skies', {
       fontFamily: 'Verdana',
       fontSize: '20px',
       color: '#1b4965'
     }).setOrigin(0.5);
 
-    this.makeButton(GAME_HEIGHT / 2 + 10, '1 / C - Start Chaos Missions', () => {
+    this.makeButton(GAME_HEIGHT / 2 + 12, '1 / C - Start Chaos Missions', () => {
       this.scene.start(SCENE_KEYS.Chaos);
     });
 
-    this.makeButton(GAME_HEIGHT / 2 + 76, '2 / A - Start Arcade', () => {
+    this.makeButton(GAME_HEIGHT / 2 + 78, '2 / A - Start Arcade', () => {
       this.scene.start(SCENE_KEYS.Arcade);
     });
+
+    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 105, 'Move: Arrow keys or A/D | Drop: Hold SPACE then release', {
+      fontFamily: 'Verdana',
+      fontSize: '18px',
+      color: '#102a43'
+    }).setOrigin(0.5);
+
+    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 74, 'Mobile: use on-screen LEFT / RIGHT / DROP controls', {
+      fontFamily: 'Verdana',
+      fontSize: '16px',
+      color: '#1b4965'
+    }).setOrigin(0.5);
 
     this.input.keyboard?.on('keydown-ONE', () => this.scene.start(SCENE_KEYS.Chaos));
     this.input.keyboard?.on('keydown-C', () => this.scene.start(SCENE_KEYS.Chaos));

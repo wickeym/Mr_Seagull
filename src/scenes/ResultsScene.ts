@@ -1,17 +1,19 @@
 import Phaser from 'phaser';
-import { GAME_HEIGHT, GAME_WIDTH, SCENE_KEYS } from '../utils/constants';
+import { GAME_HEIGHT, GAME_WIDTH, SCENE_KEYS, STORAGE_KEYS } from '../utils/constants';
 
 interface ResultsData {
   score?: number;
   mode?: string;
   success?: boolean;
+  summary?: string;
 }
 
 export class ResultsScene extends Phaser.Scene {
   private dataFromRun: Required<ResultsData> = {
     score: 0,
     mode: 'Arcade',
-    success: false
+    success: false,
+    summary: ''
   };
 
   constructor() {
@@ -22,34 +24,45 @@ export class ResultsScene extends Phaser.Scene {
     this.dataFromRun = {
       score: data.score ?? 0,
       mode: data.mode ?? 'Arcade',
-      success: data.success ?? false
+      success: data.success ?? false,
+      summary: data.summary ?? ''
     };
   }
 
   public create(): void {
     this.cameras.main.setBackgroundColor(0xf1faee);
 
-    this.add.text(GAME_WIDTH / 2, 120, 'Results', {
+    this.add.text(GAME_WIDTH / 2, 88, 'Results', {
       fontFamily: 'Verdana',
       fontSize: '54px',
       color: '#1d3557'
     }).setOrigin(0.5);
 
-    this.add.text(
-      GAME_WIDTH / 2,
-      220,
-      `Mode: ${this.dataFromRun.mode}\nScore: ${this.dataFromRun.score}\nStatus: ${
-        this.dataFromRun.success ? 'Success' : 'Mission Failed'
-      }`,
-      {
-        fontFamily: 'Verdana',
-        fontSize: '26px',
-        color: '#1d3557',
-        align: 'center'
-      }
-    ).setOrigin(0.5);
+    const status = this.dataFromRun.success ? 'WIN' : 'LOSE';
+    const detailLines = [
+      `Mode: ${this.dataFromRun.mode}`,
+      `Score: ${this.dataFromRun.score}`,
+      `Status: ${status}`
+    ];
 
-    const backText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 120, 'Press ENTER or click to return to Menu', {
+    if (this.dataFromRun.mode === 'Arcade') {
+      const best = this.updateAndGetBestArcadeScore(this.dataFromRun.score);
+      detailLines.push(`Best: ${best}`);
+    }
+
+    if (this.dataFromRun.summary.length > 0) {
+      detailLines.push(this.dataFromRun.summary);
+    }
+
+    this.add.text(GAME_WIDTH / 2, 220, detailLines.join('\n'), {
+      fontFamily: 'Verdana',
+      fontSize: '24px',
+      color: '#1d3557',
+      align: 'center',
+      wordWrap: { width: 820 }
+    }).setOrigin(0.5);
+
+    const backText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 100, 'Press ENTER or tap here to return to Menu', {
       fontFamily: 'Verdana',
       fontSize: '24px',
       color: '#e63946',
@@ -63,5 +76,15 @@ export class ResultsScene extends Phaser.Scene {
 
     backText.on('pointerdown', goBack);
     this.input.keyboard?.once('keydown-ENTER', goBack);
+  }
+
+  private updateAndGetBestArcadeScore(score: number): number {
+    const previousRaw = window.localStorage.getItem(STORAGE_KEYS.arcadeBestScore);
+    const previousBest = previousRaw ? Number(previousRaw) : 0;
+    const safePrevious = Number.isFinite(previousBest) ? previousBest : 0;
+
+    const best = Math.max(safePrevious, score);
+    window.localStorage.setItem(STORAGE_KEYS.arcadeBestScore, String(best));
+    return best;
   }
 }

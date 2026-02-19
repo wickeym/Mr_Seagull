@@ -25,13 +25,13 @@ export class SpawnSystem {
     this.stop();
 
     this.humanTimer = this.scene.time.addEvent({
-      delay: 1300,
+      delay: 950,
       loop: true,
       callback: () => this.spawnHuman()
     });
 
     this.carTimer = this.scene.time.addEvent({
-      delay: 2100,
+      delay: 1700,
       loop: true,
       callback: () => this.spawnCar()
     });
@@ -44,20 +44,21 @@ export class SpawnSystem {
 
   private spawnHuman(): void {
     const direction = pickOne<1 | -1>([1, -1]);
-    const x = direction === 1 ? -20 : GAME_WIDTH + 20;
-    const y = randomInt(290, 420);
-    const speed = randomInt(70, 130);
+    const x = direction === 1 ? -24 : GAME_WIDTH + 24;
+    const y = randomInt(290, 415);
+    const speed = randomInt(65, 125);
+    const highValue = Math.random() < 0.22;
 
-    const human = new Human(this.scene, x, y);
+    const human = new Human(this.scene, x, y, highValue);
     human.setMovement(speed, direction);
     this.humans.add(human);
   }
 
   private spawnCar(): void {
     const direction = pickOne<1 | -1>([1, -1]);
-    const x = direction === 1 ? -40 : GAME_WIDTH + 40;
+    const x = direction === 1 ? -48 : GAME_WIDTH + 48;
     const y = pickOne([455, 495]);
-    const speed = randomInt(120, 180);
+    const speed = randomInt(145, 215);
 
     const car = new Car(this.scene, x, y);
     car.setMovement(speed, direction);

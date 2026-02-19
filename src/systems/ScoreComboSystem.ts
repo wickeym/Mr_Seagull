@@ -4,7 +4,7 @@ export class ScoreComboSystem {
   private comboWindowRemainingMs = 0;
   private readonly comboWindowMs: number;
 
-  constructor(comboWindowMs = 2000) {
+  constructor(comboWindowMs = 1200) {
     this.comboWindowMs = comboWindowMs;
   }
 
@@ -27,7 +27,7 @@ export class ScoreComboSystem {
       this.comboMultiplier = 1;
     }
 
-    const gained = value * this.comboMultiplier;
+    const gained = Math.round(value * this.comboMultiplier);
     this.scoreValue += gained;
     this.comboWindowRemainingMs = this.comboWindowMs;
     return gained;

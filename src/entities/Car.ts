@@ -27,33 +27,48 @@ export class Car extends Phaser.Physics.Arcade.Sprite {
     }
 
     this.alreadyHit = true;
+
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.enable = false;
-    this.setTint(0xe63946);
 
-    const bubble = this.scene.add.text(this.x, this.y - 28, 'HONK?!', {
+    const emoji = this.scene.add.text(this.x, this.y - 30, Math.random() > 0.5 ? '🤢' : '!', {
       fontFamily: 'Verdana',
-      fontSize: '12px',
+      fontSize: '20px',
       color: '#111'
-    });
-    bubble.setOrigin(0.5);
+    }).setOrigin(0.5);
 
     this.scene.tweens.add({
-      targets: [this, bubble],
-      angle: 8,
-      duration: 70,
+      targets: this,
+      y: this.y - 9,
+      angle: 10,
+      duration: 100,
       yoyo: true,
-      repeat: 3,
-      onComplete: () => {
-        bubble.destroy();
-        this.destroy();
-      }
+      repeat: 2
     });
+
+    this.scene.tweens.add({
+      targets: emoji,
+      y: emoji.y - 16,
+      alpha: 0,
+      duration: 600,
+      onComplete: () => emoji.destroy()
+    });
+
+    this.scene.time.delayedCall(620, () => this.destroy());
+  }
+
+  public get scoreValue(): number {
+    return 22;
+  }
+
+  public get chaosValue(): number {
+    return 14;
   }
 
   public preUpdate(time: number, delta: number): void {
     super.preUpdate(time, delta);
-    if (this.x < -60 || this.x > GAME_WIDTH + 60) {
+
+    if (this.x < -65 || this.x > GAME_WIDTH + 65) {
       this.destroy();
     }
   }

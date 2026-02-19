@@ -25,6 +25,7 @@ export class MissionSystem {
 
   public update(deltaSec: number): void {
     this.timeRemainingSecValue = Math.max(0, this.timeRemainingSecValue - deltaSec);
+    this.chaosMeterValue = Math.max(0, this.chaosMeterValue - this.level.chaosDecayPerSec * deltaSec);
   }
 
   public registerHit(type: ObjectiveType, chaosGain: number): void {
@@ -37,7 +38,7 @@ export class MissionSystem {
   }
 
   public get chaosMeter(): number {
-    return this.chaosMeterValue;
+    return Math.round(this.chaosMeterValue);
   }
 
   public get timeRemainingSec(): number {
@@ -49,11 +50,14 @@ export class MissionSystem {
   }
 
   public get isComplete(): boolean {
-    const objectivesDone = this.objectives.every((item) => item.current >= item.target);
-    return objectivesDone && this.chaosMeterValue >= this.level.targetChaos;
+    return this.objectives.every((item) => item.current >= item.target);
   }
 
   public get isFailed(): boolean {
     return this.timeRemainingSecValue <= 0 && !this.isComplete;
+  }
+
+  public get summary(): string {
+    return `${this.objectivesText} | Chaos ${this.chaosMeter}/100`;
   }
 }

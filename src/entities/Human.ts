@@ -3,14 +3,21 @@ import { GAME_WIDTH } from '../utils/constants';
 
 export class Human extends Phaser.Physics.Arcade.Sprite {
   private alreadyHit = false;
+  private readonly highValue: boolean;
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
+  constructor(scene: Phaser.Scene, x: number, y: number, highValue = false) {
     super(scene, x, y, 'human');
+
+    this.highValue = highValue;
 
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
     this.setDepth(4);
+
+    if (this.highValue) {
+      this.setTint(0x9d4edd);
+    }
 
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setAllowGravity(false);
@@ -27,33 +34,47 @@ export class Human extends Phaser.Physics.Arcade.Sprite {
     }
 
     this.alreadyHit = true;
+
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.enable = false;
-    this.setTint(0xffb703);
 
-    const bubble = this.scene.add.text(this.x, this.y - 24, 'HEY!', {
+    const emoji = this.scene.add.text(this.x, this.y - 28, Math.random() > 0.35 ? '🤢' : '!', {
       fontFamily: 'Verdana',
-      fontSize: '12px',
+      fontSize: '20px',
       color: '#111'
-    });
-    bubble.setOrigin(0.5);
+    }).setOrigin(0.5);
 
     this.scene.tweens.add({
-      targets: [this, bubble],
-      x: this.x + 8,
-      y: this.y - 6,
+      targets: this,
+      y: this.y - 12,
+      angle: 14,
       duration: 120,
       yoyo: true,
-      repeat: 2,
-      onComplete: () => {
-        bubble.destroy();
-        this.destroy();
-      }
+      repeat: 1
     });
+
+    this.scene.tweens.add({
+      targets: emoji,
+      y: emoji.y - 16,
+      alpha: 0,
+      duration: 600,
+      onComplete: () => emoji.destroy()
+    });
+
+    this.scene.time.delayedCall(620, () => this.destroy());
+  }
+
+  public get scoreValue(): number {
+    return this.highValue ? 20 : 12;
+  }
+
+  public get chaosValue(): number {
+    return this.highValue ? 9 : 6;
   }
 
   public preUpdate(time: number, delta: number): void {
     super.preUpdate(time, delta);
+
     if (this.x < -40 || this.x > GAME_WIDTH + 40) {
       this.destroy();
     }
