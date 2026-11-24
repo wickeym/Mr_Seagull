@@ -8,6 +8,7 @@ ctx.imageSmoothingEnabled = false;
 
 const input = new Input(canvas);
 const game = new Game(ctx, input);
+game.audio.preload();
 
 (window as unknown as { __game: Game }).__game = game;
 

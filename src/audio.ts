@@ -1,3 +1,15 @@
+const SFX_URLS = {
+  fart: new URL('./sfx/fart.mp3', import.meta.url),
+  cartoonSplat: new URL('./sfx/cartoon-splat.mp3', import.meta.url),
+  wetSplat: new URL('./sfx/wet-splat.mp3', import.meta.url)
+};
+type Effect = keyof typeof SFX_URLS;
+
+interface Sample {
+  buffer: AudioBuffer;
+  offset: number;
+}
+
 export class Audio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -5,8 +17,8 @@ export class Audio {
   private sfxGain: GainNode | null = null;
   private leadDelay: DelayNode | null = null;
   private noise: AudioBuffer | null = null;
-  private goo: AudioBuffer | null = null;
-  private splatId = 0;
+  private readonly sampleLoads = new Map<Effect, Promise<ArrayBuffer | null>>();
+  private readonly samples = new Map<Effect, Sample>();
   private musicTimer: number | null = null;
   private musicNext = 0;
   private step = 0;
@@ -16,6 +28,16 @@ export class Audio {
 
   get ready(): boolean {
     return this.started;
+  }
+
+  preload(): void {
+    if (this.sampleLoads.size) return;
+    for (const name of Object.keys(SFX_URLS) as Effect[]) {
+      const load = fetch(SFX_URLS[name])
+        .then((response) => response.ok ? response.arrayBuffer() : null)
+        .catch(() => null);
+      this.sampleLoads.set(name, load);
+    }
   }
 
   async unlock(): Promise<void> {
@@ -53,7 +75,14 @@ export class Audio {
     this.sfxGain = sfx;
     this.leadDelay = delay;
     this.noise = whiteNoise(ctx, 1);
-    this.goo = gooNoise(ctx, 1.4);
+    this.preload();
+    for (const [name, load] of this.sampleLoads) {
+      void load.then(async (bytes) => {
+        if (!bytes) return;
+        const buffer = await ctx.decodeAudioData(bytes);
+        this.samples.set(name, { buffer, offset: sampleOnset(buffer) });
+      }).catch(() => { /* The rest of the audio can play if a sample fails to decode. */ });
+    }
     this.started = true;
     await ctx.resume();
     this.startMusic();
@@ -108,110 +137,64 @@ export class Audio {
     src.stop(t + dur + 0.05);
   }
 
-  private gooLayer(
-    t: number,
-    dur: number,
-    peak: number,
-    type: BiquadFilterType,
-    f0: number,
-    f1: number,
-    q: number,
-    buffer: AudioBuffer | null,
-    dest?: AudioNode
-  ): void {
-    if (!this.ctx || !buffer || this.muted) return;
-    const src = this.ctx.createBufferSource();
-    src.buffer = buffer;
-    src.playbackRate.setValueAtTime(0.82 + Math.random() * 0.18, t);
-    src.playbackRate.exponentialRampToValueAtTime(0.38 + Math.random() * 0.12, t + dur);
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = type;
-    filter.Q.value = q;
-    filter.frequency.setValueAtTime(f0, t);
-    filter.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur);
-    src.connect(filter);
-    this.env(filter, t, peak, 0.008, dur, dest ?? this.sfxGain!);
-    src.start(t);
-    src.stop(t + dur + 0.08);
-  }
-
   flap(): void {
     this.noiseBurst(0.08, 0.06, 700, 1400);
     this.tone('sine', 240, 0.07, 0.03);
   }
 
-  drop(fat = false): void {
-    if (fat) {
-      this.tone('sine', 150, 0.18, 0.12, 0, 62);
-      this.tone('triangle', 92, 0.22, 0.1, 0.02, 40);
-      this.noiseBurst(0.14, 0.08, 220, 650);
-      return;
-    }
-    this.tone('sine', 210, 0.14, 0.1, 0, 90);
-    this.tone('triangle', 130, 0.18, 0.07, 0.02, 70);
-    this.noiseBurst(0.1, 0.05, 280, 800);
+  private playSample(name: Effect, level: number, rate: number, maxLength: number): boolean {
+    const sample = this.samples.get(name);
+    if (!sample || !this.ctx || !this.sfxGain || this.muted) return false;
+    const { buffer, offset } = sample;
+    const length = Math.min(maxLength * rate, buffer.duration - offset);
+    const at = this.ctx.currentTime;
+    const end = at + length / rate;
+    const fade = Math.min(0.028, length / rate / 3);
+
+    const source = this.ctx.createBufferSource();
+    const volume = this.ctx.createGain();
+    source.buffer = buffer;
+    source.playbackRate.value = rate;
+    volume.gain.setValueAtTime(0, at);
+    volume.gain.linearRampToValueAtTime(level, at + fade * 0.2);
+    volume.gain.setValueAtTime(level, end - fade);
+    volume.gain.linearRampToValueAtTime(0, end);
+    source.connect(volume);
+    volume.connect(this.sfxGain);
+    source.start(at, offset, length);
+    return true;
   }
 
-  splat(scale = 1): void {
-    if (!this.ctx || !this.goo || this.muted || !this.sfxGain) return;
-    const ctx = this.ctx;
-    const t = ctx.currentTime;
-    const s = scale;
-    const v = this.splatId++ % 4;
-    const spec =
-      v === 0
-        ? { thud: 98, flesh: 154, goo: 520, drip: 1, peak: 0.3, dur: 0.2 } // plump
-        : v === 1
-          ? { thud: 124, flesh: 188, goo: 760, drip: 3, peak: 0.26, dur: 0.18 } // wet
-          : v === 2
-            ? { thud: 146, flesh: 230, goo: 880, drip: 2, peak: 0.24, dur: 0.15 } // ripe
-            : { thud: 76, flesh: 122, goo: 400, drip: 2, peak: 0.34, dur: 0.26 }; // heavy
-    const jitter = 0.94 + Math.random() * 0.12;
-    const thudF = spec.thud * jitter;
+  drop(fat = false): void {
+    this.playSample('fart', fat ? 0.78 : 0.60, fat ? 0.90 : 1.20, fat ? 0.42 : 0.22);
+  }
 
-    const thud = ctx.createOscillator();
-    thud.type = 'sine';
-    thud.frequency.setValueAtTime(thudF, t);
-    thud.frequency.exponentialRampToValueAtTime(Math.max(36, thudF * 0.46), t + spec.dur * s);
-    this.env(thud, t, spec.peak * s, 0.012, spec.dur * s);
-    thud.start(t);
-    thud.stop(t + spec.dur * s + 0.04);
-
-    const flesh = ctx.createOscillator();
-    flesh.type = 'triangle';
-    flesh.frequency.setValueAtTime(spec.flesh * jitter, t);
-    flesh.frequency.exponentialRampToValueAtTime(48, t + spec.dur * 1.1 * s);
-    this.env(flesh, t, 0.14 * s, 0.014, spec.dur * 1.05 * s);
-    flesh.start(t);
-    flesh.stop(t + spec.dur * s + 0.06);
-
-    this.gooLayer(t, spec.dur * 1.15 * s, (v === 1 ? 0.3 : 0.22) * s, 'lowpass', spec.goo, 120, 0.85, this.goo);
-    this.gooLayer(t + 0.012, spec.dur * 0.85 * s, 0.12 * s, 'bandpass', spec.goo * 0.7, 110, 1.05, this.goo);
-
-    for (let i = 0; i < spec.drip; i++) {
-      const at = 0.06 + i * 0.05 + Math.random() * 0.02;
-      this.tone('sine', 64 + Math.random() * (v === 2 ? 80 : 44), 0.1 * s, 0.055 * s, at, 26);
-    }
-    if (v !== 0) {
-      this.gooLayer(t + 0.11 + Math.random() * 0.03, 0.11 * s, 0.09 * s, 'lowpass', 560, 150, 1.05, this.goo);
-    }
+  private splat(fat: boolean, level: number, rate = fat ? 0.92 : 1): void {
+    const first = fat ? 'wetSplat' : 'cartoonSplat';
+    const alternate = fat ? 'cartoonSplat' : 'wetSplat';
+    const length = fat ? 0.78 : 0.56;
+    if (!this.playSample(first, level, rate, length)) this.playSample(alternate, level, rate, length);
   }
 
   chargeReady(): void {
-    this.tone('sine', 164, 0.1, 0.07, 0, 118);
-    this.tone('triangle', 220, 0.12, 0.05, 0.02, 140);
+    this.tone('sine', 330, 0.09, 0.07);
+    this.tone('triangle', 660, 0.16, 0.065, 0.05);
   }
 
-  hit(combo: number, fat = false): void {
-    this.splat(fat ? 1.55 : 1);
+  hit(combo: number, fat = false, targets = 1): void {
+    this.splat(fat, fat ? 0.98 : 0.82);
     const base = 392 + Math.min(combo, 12) * 22;
-    this.tone('triangle', base, 0.12, 0.08, 0.16);
-    this.tone('sine', base * 1.5, 0.14, 0.06, 0.22);
+    // Give the wet impact room before the score notes answer it.
+    const chime = fat ? 0.26 : 0.19;
+    this.tone('triangle', base, 0.12, 0.065, chime);
+    this.tone('sine', base * 1.5, 0.14, 0.055, chime + 0.06);
+    if (fat) this.tone('triangle', base * 2, 0.2, 0.065, chime + 0.12);
+    if (targets > 1) this.tone('sine', base * 3, 0.19, 0.06, chime + 0.18);
   }
 
   miss(fat = false): void {
-    this.splat(fat ? 1.45 : 1);
-    this.tone('sine', 96, 0.18, 0.06, 0.12, 54);
+    this.splat(fat, fat ? 0.44 : 0.33, 1.21);
+    this.tone('sine', 96, 0.15, 0.04, 0.085, 54);
   }
 
   pickup(): void {
@@ -233,11 +216,19 @@ export class Audio {
     this.tone('square', 140, 0.18, 0.05, 0.04, 55);
   }
 
-  smash(): void {
+  honk(): void {
+    this.tone('sawtooth', 262, 0.12, 0.065, 0.07, 220);
+    this.tone('triangle', 349, 0.2, 0.09, 0.075, 277);
+  }
+
+  smash(chain: number): void {
     this.noiseBurst(0.16, 0.28, 180, 700);
     this.tone('sawtooth', 110, 0.14, 0.14, 0, 48);
     this.tone('triangle', 70, 0.18, 0.1, 0.02, 32);
     this.noiseBurst(0.12, 0.12, 1600, 3800, 0.03);
+    const note = 523 * 2 ** (Math.min(chain - 1, 5) / 6);
+    this.tone('triangle', note, 0.12, 0.085, 0.09);
+    this.tone('sine', note * 1.5, 0.2, 0.075, 0.145);
   }
 
   ui(): void {
@@ -260,7 +251,7 @@ export class Audio {
   }
 
   nearMiss(fat = false): void {
-    this.splat(fat ? 1.35 : 1);
+    this.splat(fat, fat ? 0.62 : 0.55, 1.10);
     this.tone('triangle', 300, 0.08, 0.06, 0.14);
     this.tone('sine', 340, 0.1, 0.05, 0.2);
   }
@@ -564,16 +555,18 @@ function whiteNoise(ctx: AudioContext, seconds: number): AudioBuffer {
   return buf;
 }
 
-function gooNoise(ctx: AudioContext, seconds: number): AudioBuffer {
-  const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * seconds), ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  let acc = 0;
-  for (let i = 0; i < data.length; i++) {
-    acc = acc * 0.985 + (Math.random() * 2 - 1) * 0.22;
-    const pop = Math.random() < 0.0012 ? (Math.random() * 2 - 1) * 0.28 : 0;
-    const gurgle = Math.sin(i * 0.018 + Math.sin(i * 0.006) * 3.2);
-    const cluster = Math.sin(i * 0.0015) > 0.28 ? 1 : 0.42;
-    data[i] = Math.max(-1, Math.min(1, (acc * 0.92 + pop + gurgle * 0.16) * cluster));
+function sampleOnset(buffer: AudioBuffer): number {
+  const frames = Math.max(1, Math.round(buffer.sampleRate * 0.004));
+  const peaks = new Float32Array(Math.ceil(buffer.length / frames));
+  for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+    const samples = buffer.getChannelData(channel);
+    for (let i = 0; i < samples.length; i++) {
+      const window = Math.floor(i / frames);
+      peaks[window] = Math.max(peaks[window]!, Math.abs(samples[i]!));
+    }
   }
-  return buf;
+  const threshold = Math.max(0.008, Math.max(...peaks) * 0.08);
+  const first = peaks.findIndex((peak) => peak >= threshold);
+  // Keep a little lead-in so the fade starts before the attack.
+  return Math.max(0, (first - 1) * frames / buffer.sampleRate);
 }

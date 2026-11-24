@@ -37,7 +37,7 @@ export class Input {
   pointerX = 0;
   pointerY = 0;
   pointerDown = false;
-  usingTouch = coarsePointer();
+  usingTouch = false;
   padX = 0;
   padY = 0;
   stickActive = false;
@@ -53,7 +53,10 @@ export class Input {
   private queuedClick = false;
   private readonly pointers = new Map<number, TouchRole>();
 
-  constructor(private readonly canvas: HTMLCanvasElement) {
+  constructor(private readonly surface: HTMLCanvasElement | null) {
+    const canvas = this.surface;
+    if (!canvas) return;
+    this.usingTouch = coarsePointer();
     const stick = touchLayout(canvas.width, canvas.height).stick;
     this.stickOriginX = stick.x;
     this.stickOriginY = stick.y;
@@ -76,6 +79,11 @@ export class Input {
       },
       { passive: false }
     );
+  }
+
+  private get canvas(): HTMLCanvasElement {
+    if (!this.surface) throw new Error('Pointer input requires a canvas');
+    return this.surface;
   }
 
   private addKey(e: KeyboardEvent): void {

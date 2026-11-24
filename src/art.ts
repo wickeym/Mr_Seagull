@@ -36,7 +36,11 @@ const C = {
   woodD: '#7a4c2e'
 };
 
-type Mood = 'idle' | 'look' | 'horror';
+export type ReactionPose = 'flinch' | 'disgust' | 'wipe';
+export type ReactionActor = 'sunbather' | 'tourist' | 'jogger' | 'kid' | 'slinger';
+type Mood = 'idle' | 'look' | 'horror' | ReactionPose;
+export const CLOSE_UP_DENSITY = 3;
+const closeUpArt = new WeakSet<CanvasRenderingContext2D>();
 
 function sheet(w: number, h: number): { c: HTMLCanvasElement; g: CanvasRenderingContext2D } {
   const c = document.createElement('canvas');
@@ -49,11 +53,19 @@ function sheet(w: number, h: number): { c: HTMLCanvasElement; g: CanvasRendering
 
 function pset(g: CanvasRenderingContext2D, x: number, y: number, col: string): void {
   g.fillStyle = col;
+  if (closeUpArt.has(g)) {
+    g.fillRect(x, y, 0.8, 0.8);
+    return;
+  }
   g.fillRect(Math.round(x), Math.round(y), 1, 1);
 }
 
 function rect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, col: string): void {
   g.fillStyle = col;
+  if (closeUpArt.has(g)) {
+    g.fillRect(x, y, w, h);
+    return;
+  }
   g.fillRect(Math.round(x), Math.round(y), Math.max(1, Math.round(w)), Math.max(1, Math.round(h)));
 }
 
@@ -65,6 +77,10 @@ function oval(
   ry: number,
   col: string
 ): void {
+  if (closeUpArt.has(g)) {
+    ovalRot(g, cx, cy, rx, ry, 0, col);
+    return;
+  }
   const rxi = Math.max(1, rx);
   const ryi = Math.max(1, ry);
   const y0 = Math.ceil(-ryi);
@@ -87,6 +103,13 @@ function ovalRot(
   rot: number,
   col: string
 ): void {
+  if (closeUpArt.has(g)) {
+    g.fillStyle = col;
+    g.beginPath();
+    g.ellipse(cx, cy, rx, ry, rot, 0, Math.PI * 2);
+    g.fill();
+    return;
+  }
   const cos = Math.cos(rot);
   const sin = Math.sin(rot);
   const bound = Math.ceil(Math.max(rx, ry) + 1);
@@ -124,6 +147,16 @@ function stick(
   r: number,
   col: string
 ): void {
+  if (closeUpArt.has(g)) {
+    g.strokeStyle = col;
+    g.lineCap = 'round';
+    g.lineWidth = r * 2;
+    g.beginPath();
+    g.moveTo(x0, y0);
+    g.lineTo(x1, y1);
+    g.stroke();
+    return;
+  }
   const dx = x1 - x0;
   const dy = y1 - y0;
   const n = Math.ceil(Math.hypot(dx, dy) || 1);
@@ -189,6 +222,7 @@ function drawEye(
   oval(g, x, y, rx, ry, C.j);
   const py = mood === 'look' ? -Math.max(1, ry * 0.4) : 0;
   const pr = mood === 'horror' ? Math.max(1.8, rx * 0.32) : Math.max(1.6, rx * 0.45);
+  if (closeUpArt.has(g)) oval(g, x, y + py, pr + 0.55, pr + 0.55, '#79544a');
   oval(g, x, y + py, pr, pr, C.e);
   pset(g, x - 1, y + py - 1, C.j);
   const browY = y - ry - (mood === 'look' ? 3 : 2);
@@ -221,9 +255,43 @@ function drawFace(
   oval(g, cx, cy, 11, 13, skin);
   oval(g, cx - 11, cy + 1, 3, 4, skin);
   oval(g, cx + 11, cy + 1, 3, 4, skin);
+  const detailed = closeUpArt.has(g);
+  if (detailed) {
+    oval(g, cx, cy + 0.8, 10.4, 12, '#d79276');
+    ovalRot(g, cx - 1, cy - 0.4, 9.6, 10.8, -0.17, skin);
+    oval(g, cx - 11, cy + 1.4, 1.25, 2.1, C.n);
+    oval(g, cx + 11, cy + 1.4, 1.25, 2.1, C.n);
+  }
   hair(g, cx, cy);
   oval(g, cx - 5, cy + 3, 3, 2, C.n);
   oval(g, cx + 5, cy + 3, 3, 2, C.n);
+  if (mood === 'flinch' || mood === 'disgust' || mood === 'wipe') {
+    stick(g, cx - 9, cy - 5, cx - 3, cy - 2, 1.25, C.k);
+    stick(g, cx + 3, cy - 3, cx + 9, cy - 7, 1.25, C.k);
+    stick(g, cx - 9, cy + 1, cx - 4, cy, 1.1, C.k);
+    if (mood === 'flinch') {
+      stick(g, cx + 3, cy, cx + 9, cy + 1, 1.1, C.k);
+      oval(g, cx + 2, cy + 8, 4, 3, '#4a1816');
+    } else {
+      drawEye(g, cx + 5, cy - 1, 3.7, 3.3, 'idle');
+      ovalRot(g, cx + 2, cy + 7, 6, 3.8, -0.34, '#4a1816');
+      stick(g, cx - 2, cy + 6, cx + 6, cy + 4, 1.2, C.j);
+      oval(g, cx + 4, cy + 9, 2.4, 1.6, C.n);
+      if (detailed) {
+        stick(g, cx + 1, cy + 5.6, cx + 1, cy + 6.3, 0.24, '#bdb4ae');
+        stick(g, cx + 3.5, cy + 4.8, cx + 3.5, cy + 5.5, 0.24, '#bdb4ae');
+        oval(g, cx + 4.4, cy + 8.5, 1.1, 0.4, '#ffb6ad');
+      }
+    }
+    if (detailed) {
+      oval(g, cx - 0.6, cy + 2.6, 1.35, 1.6, '#c9816c');
+      oval(g, cx - 1, cy + 2.1, 0.75, 0.65, C.skinHi);
+      stick(g, cx - 9, cy + 4, cx - 7.9, cy + 4.5, 0.32, '#bd7667');
+      stick(g, cx - 8, cy + 5.1, cx - 6.9, cy + 5.6, 0.32, '#bd7667');
+    }
+    pset(g, cx, cy + 3, C.skinHi);
+    return;
+  }
   const eyeY = mood === 'look' ? cy - 3 : cy - 1;
   const eyeR = mood === 'horror' ? 5 : 3.6;
   const eyeH = mood === 'horror' ? 6 : 4.2;
@@ -247,13 +315,19 @@ function drawPerson(
   mood: Mood,
   hair: (g: CanvasRenderingContext2D, cx: number, cy: number) => void,
   clothes: (g: CanvasRenderingContext2D, cx: number, top: number, mood: Mood) => void,
-  extras?: (g: CanvasRenderingContext2D, cx: number, headY: number, mood: Mood) => void
+  extras?: (g: CanvasRenderingContext2D, cx: number, headY: number, mood: Mood) => void,
+  density = 1
 ): HTMLCanvasElement {
-  const w = mood === 'horror' ? 88 : 64;
-  const h = mood === 'horror' ? 80 : 64;
-  const { c, g } = sheet(w, h);
+  const wide = mood !== 'idle' && mood !== 'look';
+  const w = wide ? 88 : 64;
+  const h = wide ? 80 : 64;
+  const { c, g } = sheet(w * density, h * density);
+  if (density > 1) {
+    closeUpArt.add(g);
+    g.scale(density, density);
+  }
   const cx = w / 2;
-  const headY = mood === 'horror' ? 28 : 20;
+  const headY = wide ? 28 : 20;
   const bodyY = headY + 22;
   const skin = C.s;
 
@@ -264,7 +338,10 @@ function drawPerson(
 
   clothes(g, cx, bodyY, mood);
 
-  if (mood === 'horror') {
+  if (mood === 'wipe') {
+    stick(g, cx - 10, bodyY - 2, cx - 21, headY + 14, 2.4, skin);
+    stick(g, cx + 10, bodyY - 2, cx + 11, headY + 8, 2.4, skin);
+  } else if (wide) {
     stick(g, cx - 10, bodyY - 4, cx - 28, headY - 10, 2.4, skin);
     stick(g, cx + 10, bodyY - 4, cx + 28, headY - 10, 2.4, skin);
     drawHand(g, cx - 30, headY - 12, skin, true);
@@ -283,6 +360,7 @@ function drawPerson(
 
   drawFace(g, cx, headY, mood, skin, hair);
   extras?.(g, cx, headY, mood);
+  if (mood === 'wipe') drawHand(g, cx + 11, headY + 8, skin, false);
   return ink(c);
 }
 
@@ -468,6 +546,24 @@ function drawGull(pose: GullPose): HTMLCanvasElement {
   return ink(c);
 }
 
+function drawDriver(g: CanvasRenderingContext2D, cx: number, mood: Mood): void {
+  oval(g, cx, 18, 7, 7, C.s);
+  oval(g, cx, 14, 8, 4, C.k);
+  if (mood === 'flinch') {
+    stick(g, cx - 6, 17, cx - 2, 19, 1, C.k);
+    drawEye(g, cx + 3, 18, 2.8, 3.1, 'horror');
+    oval(g, cx - 1, 23, 4, 2.5, '#4a1816');
+    rect(g, cx - 3, 21, 5, 1, C.j);
+  } else if (mood === 'look') {
+    drawEye(g, cx - 3, 18, 2.4, 2.8, 'look');
+    drawEye(g, cx + 3, 18, 2.4, 2.8, 'look');
+    oval(g, cx, 24, 3, 2, '#4a1816');
+  } else {
+    oval(g, cx - 2, 18, 1.6, 1.8, C.e);
+    oval(g, cx + 2, 18, 1.6, 1.8, C.e);
+  }
+}
+
 function drawCar(mood: Mood): HTMLCanvasElement {
   const { c, g } = sheet(88, 74);
   const cx = 44;
@@ -497,13 +593,7 @@ function drawCar(mood: Mood): HTMLCanvasElement {
   stick(g, 58, 30, 58, 12, 1.3, C.z);
   stick(g, 30, 12, 58, 12, 1.3, C.z);
 
-  oval(g, cx, 18, 7, 7, C.s);
-  oval(g, cx, 14, 8, 4, C.k);
-  if (mood !== 'idle') {
-    drawEye(g, cx - 3, 18, 2.4, 2.8, 'look');
-    drawEye(g, cx + 3, 18, 2.4, 2.8, 'look');
-    oval(g, cx, 24, 3, 2, '#4a1816');
-  }
+  drawDriver(g, cx, mood);
 
   oval(g, cx, 38, 8, 3, C.k);
   return ink(c);
@@ -544,16 +634,7 @@ function drawCarFront(mood: Mood): HTMLCanvasElement {
   oval(g, 10, 46, 5, 3, C.z);
   oval(g, 78, 46, 5, 3, C.z);
 
-  oval(g, cx, 18, 7, 7, C.s);
-  oval(g, cx, 14, 8, 4, C.k);
-  if (mood !== 'idle') {
-    drawEye(g, cx - 3, 18, 2.4, 2.8, 'look');
-    drawEye(g, cx + 3, 18, 2.4, 2.8, 'look');
-    oval(g, cx, 24, 3, 2, '#4a1816');
-  } else {
-    oval(g, cx - 2, 18, 1.6, 1.8, C.e);
-    oval(g, cx + 2, 18, 1.6, 1.8, C.e);
-  }
+  drawDriver(g, cx, mood);
 
   oval(g, cx, 40, 9, 3, C.k);
   return ink(c);
@@ -702,8 +783,10 @@ export type SpriteName =
   | 'pebble'
   | 'car'
   | 'carLook'
+  | 'carPanic'
   | 'carFront'
   | 'carFrontLook'
+  | 'carFrontPanic'
   | 'umbrella'
   | 'fries'
   | 'heart'
@@ -711,7 +794,35 @@ export type SpriteName =
   | 'cloud'
   | 'pier';
 
-export type Atlas = Record<SpriteName, HTMLCanvasElement>;
+type ReactionFrames = Record<ReactionPose, HTMLCanvasElement>;
+export type Atlas = Record<SpriteName, HTMLCanvasElement> & {
+  reactions: Record<ReactionActor, ReactionFrames>;
+  closeUpReaction: (actor: ReactionActor, pose: ReactionPose) => HTMLCanvasElement;
+};
+
+type PersonArt = [Parameters<typeof drawPerson>[1], Parameters<typeof drawPerson>[2], Parameters<typeof drawPerson>[3]?];
+
+function touristExtras(g: CanvasRenderingContext2D, cx: number, headY: number): void {
+  touristHat(g, cx, headY);
+  touristCam(g, cx, headY);
+}
+
+const REACTION_ART: Record<ReactionActor, PersonArt> = {
+  sunbather: [sunHair, sunClothes],
+  tourist: [touristHair, touristClothes, touristExtras],
+  jogger: [jogHair, jogClothes, jogBand],
+  kid: [kidHair, kidClothes],
+  slinger: [slingerHair, slingerClothes, drawSling]
+};
+
+function drawReactions(actor: ReactionActor): ReactionFrames {
+  const [hair, clothes, extras] = REACTION_ART[actor];
+  return {
+    flinch: drawPerson('flinch', hair, clothes, extras),
+    disgust: drawPerson('disgust', hair, clothes, extras),
+    wipe: drawPerson('wipe', hair, clothes, extras)
+  };
+}
 
 export function createAtlas(): Atlas {
   const gull0 = drawGull('up');
@@ -720,6 +831,7 @@ export function createAtlas(): Atlas {
   const gullL0 = drawGull('leftUp');
   const gullL1 = drawGull('leftMid');
   const gullL2 = drawGull('leftDown');
+  const closeUpFrames = new Map<string, HTMLCanvasElement>();
 
   return {
     gull0,
@@ -734,21 +846,28 @@ export function createAtlas(): Atlas {
     poop: drawPoop(),
     splat: drawSplat(),
     shadow: drawShadow(),
+    reactions: {
+      sunbather: drawReactions('sunbather'),
+      tourist: drawReactions('tourist'),
+      jogger: drawReactions('jogger'),
+      kid: drawReactions('kid'),
+      slinger: drawReactions('slinger')
+    },
+    closeUpReaction(actor, pose) {
+      const key = `${actor}:${pose}`;
+      const cached = closeUpFrames.get(key);
+      if (cached) return cached;
+      const [hair, clothes, extras] = REACTION_ART[actor];
+      const frame = drawPerson(pose, hair, clothes, extras, CLOSE_UP_DENSITY);
+      closeUpFrames.set(key, frame);
+      return frame;
+    },
     sunbather: drawPerson('idle', sunHair, sunClothes),
     sunbatherLook: drawPerson('look', sunHair, sunClothes),
     sunbatherHorror: drawPerson('horror', sunHair, sunClothes),
-    tourist: drawPerson('idle', touristHair, touristClothes, (g, cx, hy) => {
-      touristHat(g, cx, hy);
-      touristCam(g, cx, hy);
-    }),
-    touristLook: drawPerson('look', touristHair, touristClothes, (g, cx, hy) => {
-      touristHat(g, cx, hy);
-      touristCam(g, cx, hy);
-    }),
-    touristHorror: drawPerson('horror', touristHair, touristClothes, (g, cx, hy) => {
-      touristHat(g, cx, hy);
-      touristCam(g, cx, hy);
-    }),
+    tourist: drawPerson('idle', touristHair, touristClothes, touristExtras),
+    touristLook: drawPerson('look', touristHair, touristClothes, touristExtras),
+    touristHorror: drawPerson('horror', touristHair, touristClothes, touristExtras),
     jogger: drawPerson('idle', jogHair, jogClothes, jogBand),
     joggerLook: drawPerson('look', jogHair, jogClothes, jogBand),
     joggerHorror: drawPerson('horror', jogHair, jogClothes, jogBand),
@@ -762,8 +881,10 @@ export function createAtlas(): Atlas {
     pebble: drawPebble(),
     car: drawCar('idle'),
     carLook: drawCar('look'),
+    carPanic: drawCar('flinch'),
     carFront: drawCarFront('idle'),
     carFrontLook: drawCarFront('look'),
+    carFrontPanic: drawCarFront('flinch'),
     umbrella: drawUmbrellaIcon(),
     fries: drawFries(),
     heart: drawHeart(),

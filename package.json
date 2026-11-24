@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "playtest": "node scripts/playtest.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
   },
